@@ -35,7 +35,11 @@ jupyter:
     > 这里我感觉其是就是这几个层做一个特征工程，提取特征什么的，然后我们要实现的训练调参的就是最后的VTU层
 :::
 
-::: {.cell .code execution_count="35"}
+::: {.cell .markdown}
+### 加载模型
+:::
+
+::: {.cell .code execution_count="22"}
 ``` python
 
 import torch
@@ -45,6 +49,7 @@ from torchvision import datasets, transforms
 import pickle
 import numpy as np
 from tqdm import tqdm
+import matplotlib.pyplot as plt  
 import hmax
 # Initialize the model with the universal patch set
 # Initialize the model with the universal patch set
@@ -59,8 +64,8 @@ train_data = torchvision.datasets.MNIST('./data', train=True, transform=transfor
 test_data = torchvision.datasets.MNIST('./data', train=False, transform=transform)
 #迭代器
 BATCH_SIZE = 32
-train_loader = torch.utils.data.DataLoader(dataset=train_data, batch_size=BATCH_SIZE, shuffle=True)
-test_loader = torch.utils.data.DataLoader(dataset=test_data, batch_size=BATCH_SIZE)
+train_loader = DataLoader(dataset=train_data, batch_size=BATCH_SIZE, shuffle=True)
+test_loader = DataLoader(dataset=test_data, batch_size=BATCH_SIZE)
 # Determine whether there is a compatible GPU available
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 #这里直接方法奥CPU上训练，这样就可以无脑运行  
@@ -68,13 +73,69 @@ device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 device='cpu'
 # Run the model on the example images
 print('Running model on', device)
-model = model.to(device)  
+model = model.to(device)
+```
+
+::: {.output .stream .stdout}
+    Constructing model
+    Running model on cpu
+:::
+:::
+
+::: {.cell .markdown}
+### 先展示一下处理过程
+:::
+
+::: {.cell .code}
+``` python
+sample_data=train_loader.dataset.__getitem__(0)  
+plt.imshow(sample_data[0][0],cmap='gray')
+plt.show()
+all_layers=model.get_all_layers(sample_data[0].reshape(1,1,28,28))
+s1=all_layers[0][0]
+c1=all_layers[1][0]
+s2=all_layers[2][0]
+c2=all_layers[3][0]
+#S1层的某个波段的四个方向
+fig, axes = plt.subplots(1, len(s1[0]), figsize=(15, 5))   
+for ax, img in zip(axes, s1[0]):
+    ax.imshow(img)
+    ax.axis('off')
+plt.tight_layout()
+plt.title('S1')
+plt.show()
+#C1层  
+fig, axes = plt.subplots(1, len(c1[0]), figsize=(15, 5))   
+for ax, img in zip(axes, c1[0]):
+    ax.imshow(img)
+    ax.axis('off')
+plt.tight_layout()
+plt.title('C1')
+plt.show()
+#S2
+fig, axes = plt.subplots(1, len(s2[0][0][:4]), figsize=(15, 5))   
+for ax, img in zip(axes, s2[0][0][:4]):
+    ax.imshow(img)
+    ax.axis('off')
+plt.tight_layout()
+plt.title('S2')
+plt.show()
+#C2输出的是一个向量
+```
+:::
+
+::: {.cell .markdown}
+### 利用Hmax处理数据
+:::
+
+::: {.cell .code}
+``` python
 #经过S1，C1，S2，C2处理的输入到VTU层的数据    
 train_data_vtu=[]
 train_data_labels=[]
 test_data_vtu=[]  
 test_data_labels=[]
-print('处理数据')
+print('处理数据')  
 for X, y in tqdm(train_loader):
     c2=model.forward(X.to(device))
     max_out=torch.max(c2,dim=1)[0].numpy().tolist()
@@ -86,17 +147,6 @@ for X, y in tqdm(test_loader):
     test_data_vtu+=max_out
     test_data_labels+=[int(i) for i in y]
 ```
-
-::: {.output .stream .stdout}
-    Constructing model
-    Running model on cpu
-    处理数据
-:::
-
-::: {.output .stream .stderr}
-    100%|██████████| 1875/1875 [14:01<00:00,  2.23it/s]
-    100%|██████████| 313/313 [02:19<00:00,  2.24it/s]
-:::
 :::
 
 ::: {.cell .markdown}
@@ -106,7 +156,7 @@ for X, y in tqdm(test_loader):
 > 可以自己随便写一个网络训练或者其他的方法试试效果
 :::
 
-::: {.cell .code execution_count="37"}
+::: {.cell .code}
 ``` python
 from sklearn.svm import SVC
 model = SVC(kernel="linear")
